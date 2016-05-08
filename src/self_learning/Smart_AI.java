@@ -11,20 +11,14 @@ import aiantwars.IAntAI;
 import aiantwars.IAntInfo;
 import aiantwars.IEgg;
 import aiantwars.ILocationInfo;
-import burlap.behavior.singleagent.learning.lspi.SARSData;
-import burlap.oomdp.core.states.State;
-import burlap.oomdp.singleagent.Action;
-import burlap.oomdp.singleagent.GroundedAction;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
-import self_learning.actions.EatFood;
-import self_learning.domain.AntWarsDomainGenerator;
-import static self_learning.domain.AntWarsDomainGenerator.LAY_SCOUT_EGG;
-import static self_learning.domain.AntWarsDomainGenerator.LAY_WARRIOR_EGG;
-import self_learning.domain.Map;
+import static self_learning.utils.AntWarsDomainGenerator.LAY_CARRIER_EGG;
+import static self_learning.utils.AntWarsDomainGenerator.LAY_SCOUT_EGG;
+import static self_learning.utils.AntWarsDomainGenerator.LAY_WARRIOR_EGG;
+import self_learning.map.Map;
 import self_learning.utils.MDP_Utils;
-import self_learning.utils.RewardFn;
 
 /**
  *
@@ -36,6 +30,7 @@ public class Smart_AI implements IAntAI {
     private HashMap<Integer, IAntInfo> friendlyAnts;
     private Map map;
     private EAntType nextEggToLay;
+//    private boolean learningMode;
 
     
     public Smart_AI(){
@@ -57,11 +52,6 @@ public class Smart_AI implements IAntAI {
     public void onStartTurn(IAntInfo thisAnt, int turn) {
         friendlyAnts.put(thisAnt.antID(), thisAnt);
         map.update(thisAnt.getLocation());
-        if (turn == 69) {
-//            State curState = mdpUtils.constructState(friendlyAnts.values(), map);
-//            System.out.println("turn" + turn);
-//            System.out.println(curState.getCompleteStateDescription());
-        }
     }
 
     @Override
@@ -77,16 +67,22 @@ public class Smart_AI implements IAntAI {
         mdpUtils.collectSARSData(friendlyAnts.values(), map);
 
         //proceed with random action picking
-        EAction action = null;
+        EAction action = EAction.Pass;
         if (possibleActions.contains(EAction.LayEgg)) {
             if (new Random().nextBoolean()) {
                 nextEggToLay = EAntType.WARRIOR;
                 mdpUtils.setLastActionPerformed(LAY_WARRIOR_EGG);
             }else{
-                nextEggToLay = EAntType.SCOUT;
-                mdpUtils.setLastActionPerformed(LAY_SCOUT_EGG);
+                if(new Random().nextBoolean()){
+                    nextEggToLay = EAntType.SCOUT;
+                    mdpUtils.setLastActionPerformed(LAY_SCOUT_EGG);
+                }
+                else{
+                    nextEggToLay = EAntType.CARRIER;
+                    mdpUtils.setLastActionPerformed(LAY_CARRIER_EGG);
+                }
             }
-            action = EAction.LayEgg;
+            return action = EAction.LayEgg;
         }
         action = possibleActions.get(new Random().nextInt(possibleActions.size()));
         mdpUtils.setLastActionPerformed(action.toString());
@@ -108,10 +104,46 @@ public class Smart_AI implements IAntAI {
 
     @Override
     public void onDeath(IAntInfo thisAnt) {
-        friendlyAnts.remove(thisAnt.antID());
-//        if(thisAnt.getAntType() == EAntType.QUEEN){
-//            mdpUtils.printShit();
-//        }
+        if (!thisAnt.getAntType().equals(EAntType.QUEEN)) {
+            friendlyAnts.remove(thisAnt.antID());
+        }
+    }
+
+    @Override
+    public void onStartMatch(int worldSizeX, int worldSizeY) {
+    }
+
+    @Override
+    public void onStartRound(int round) {
+    }
+
+    @Override
+    public void onEndRound(int yourMajor, int yourMinor, int enemyMajor, int enemyMinor) {
+        if (yourMajor > enemyMajor) {
+            //won
+            mdpUtils.collectSARSData(friendlyAnts.values(), map, 1);
+        }
+        else if(yourMajor < enemyMajor){
+            //lost
+            mdpUtils.collectSARSData(friendlyAnts.values(), map, -1);
+        }
+        else if(yourMinor > enemyMinor){
+            //won
+            mdpUtils.collectSARSData(friendlyAnts.values(), map, 1);
+        }
+        else if(yourMinor < enemyMinor){
+            //lost
+            mdpUtils.collectSARSData(friendlyAnts.values(), map, -1);
+        }
+        else{
+            //draw
+            mdpUtils.collectSARSData(friendlyAnts.values(), map, 0);
+        }
+    }
+
+    @Override
+    public void onEndMatch(int yourScore, int yourWins, int enemyScore, int enemyWins) {
+        mdpUtils.doMagic();
     }
 
 }
